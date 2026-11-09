@@ -2,6 +2,25 @@ const rowsBody = document.getElementById("ioc-rows");
 const status = document.getElementById("status");
 const filterType = document.getElementById("filter-type");
 const filterTags = document.getElementById("filter-tags");
+const suggestions = document.getElementById("tag-suggestions");
+
+function filterTokens(value) {
+  return value.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+}
+
+function partialToken(value) {
+  const tokens = value.split(",");
+  return tokens.length ? tokens[tokens.length - 1] : "";
+}
+
+function replacePartialToken(input, name) {
+  const tokens = input.value.split(",");
+  tokens[tokens.length - 1] = name;
+  input.value = tokens
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .join(", ");
+}
 
 async function load() {
   const params = new URLSearchParams();
@@ -86,7 +105,20 @@ document.getElementById("filter-form").addEventListener("submit", (e) => {
 document.getElementById("clear-btn").addEventListener("click", () => {
   filterType.value = "";
   filterTags.value = "";
+  tagSuggest.hide(suggestions);
   load();
+});
+
+// existing-tag suggestions for the comma-separated filter field: the query
+// is the token currently being typed; picking one replaces that token
+tagSuggest.load().then(() => {
+  tagSuggest.attach(
+    filterTags,
+    suggestions,
+    () => partialToken(filterTags.value),          // token being typed
+    () => filterTokens(filterTags.value),          // tokens already in filter
+    (name) => replacePartialToken(filterTags, name),
+  );
 });
 
 load();

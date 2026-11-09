@@ -32,6 +32,10 @@
       <input type="text" id="filter-tags" placeholder="e.g. malware, c2">
     </label>
 
+    <ul id="tag-suggestions" style="list-style: none; padding: 0;">
+      <!-- suggestions for existing tags appear here while typing -->
+    </ul>
+
     <button type="submit">Filter</button>
     <button type="button" id="clear-btn">Clear</button>
   </form>
@@ -54,6 +58,7 @@
     </tbody>
   </table>
 
+  <script src="/static/js/tag-suggest.js"></script>
   <script src="/static/js/list.js"></script>
 </body>
 </html>

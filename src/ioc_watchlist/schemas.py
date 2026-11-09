@@ -34,3 +34,7 @@ class IOCRead(BaseModel):
 class IOCList(BaseModel):
     items: list[IOCRead]
     total: int
+
+
+class TagList(BaseModel):
+    tags: list[str]

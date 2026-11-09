@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 
 from .db import get_conn
 from .detection import IOC_TYPES, InvalidIOCError, defang_for_display, detect
-from .schemas import IOCCreate, IOCCreated, IOCList, IOCRead, IOCTag
+from .schemas import IOCCreate, IOCCreated, IOCList, IOCRead, IOCTag, TagList
 
 router = APIRouter(prefix="/api", tags=["iocs"])
 
@@ -185,6 +185,24 @@ def list_iocs(
             assert row is not None
             items.append(_ioc_display(row))
         return IOCList(items=items, total=len(items))
+
+
+@router.get("/tags", response_model=TagList)
+def list_tags(
+    q: str | None = Query(
+        default=None,
+        description="Substring filter, case-insensitive (e.g. ?q=ware "
+        "matches 'malware')",
+    ),
+) -> TagList:
+    """All existing tag names, alphabetical; powers the tag suggestion box."""
+    with get_conn() as conn:
+        rows = conn.execute("SELECT name FROM tags ORDER BY name").fetchall()
+    names = [r["name"] for r in rows]
+    if q:
+        needle = q.strip().lower()
+        names = [n for n in names if needle in n]
+    return TagList(tags=names)
 
 
 @router.delete("/iocs/{ioc_id}", status_code=204)

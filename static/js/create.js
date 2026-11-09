@@ -2,6 +2,7 @@ const form = document.getElementById("ioc-form");
 const valueInput = document.getElementById("value");
 const tagInput = document.getElementById("tag-input");
 const addTagBtn = document.getElementById("add-tag-btn");
+const suggestions = document.getElementById("tag-suggestions");
 const chipsList = document.getElementById("tag-chips");
 const message = document.getElementById("message");
 
@@ -36,6 +37,7 @@ function addTag() {
   if (!name) return;
   tags.add(name);
   tagInput.value = "";
+  tagSuggest.hide(suggestions);
   renderChips();
 }
 
@@ -46,6 +48,19 @@ tagInput.addEventListener("keydown", (event) => {
     addTag();
   }
 });
+
+// existing-tag suggestions while typing; picking one adds the chip directly
+tagSuggest.attach(
+  tagInput,
+  suggestions,
+  () => tagInput.value,   // the whole input is the tag being typed
+  () => [...tags],        // never suggest a chip that is already added
+  (name) => {
+    tags.add(name);
+    tagInput.value = "";
+    renderChips();
+  },
+);
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -64,7 +79,10 @@ form.addEventListener("submit", async (event) => {
       );
       form.reset();
       tags.clear();
+      tagSuggest.hide(suggestions);
       renderChips();
+      // tags on the created IOC now exist server-side; refresh the cache
+      tagSuggest.refresh();
     } else {
       showMessage(data.detail || `Error ${res.status}`, true);
     }
@@ -72,3 +90,5 @@ form.addEventListener("submit", async (event) => {
     showMessage(`Request failed: ${err}`, true);
   }
 });
+
+tagSuggest.load();
