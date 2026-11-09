@@ -9,6 +9,8 @@ business logic first.
 
 > Screenshots and development-notes live in
 > [`DEVELOPMENT_PROMPTS.md`](DEVELOPMENT_PROMPTS.md).
+>
+> The app is also deployed at <https://iocs-manager.onrender.com>
 
 ## What it does
 
@@ -27,15 +29,15 @@ business logic first.
 
 ## Tech stack
 
-| Layer | Choice |
-|---|---|
-| Frontend | Vanilla HTML + JS (no framework, no build step, no CSS by design) |
-| Backend | Python 3.12, FastAPI, Pydantic v2 |
-| Database | SQLite via the standard library (`sqlite3`), no ORM |
+| Layer         | Choice                                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| Frontend      | Vanilla HTML + JS (no framework, no build step, no CSS by design)                                   |
+| Backend       | Python 3.12, FastAPI, Pydantic v2                                                                   |
+| Database      | SQLite via the standard library (`sqlite3`), no ORM                                                 |
 | Normalization | [`ioc-fanger`](https://pypi.org/project/ioc-fanger/) (fang), `url-normalize` (URL canonicalization) |
-| Tests | pytest + FastAPI `TestClient` (265 tests) |
-| Packaging | [uv](https://docs.astral.sh/uv/) project layout (`src/` layout, `uv.lock`) |
-| Server | uvicorn (single ASGI worker; SQLite-appropriate) |
+| Tests         | pytest + FastAPI `TestClient` (265 tests)                                                           |
+| Packaging     | [uv](https://docs.astral.sh/uv/) project layout (`src/` layout, `uv.lock`)                          |
+| Server        | uvicorn (single ASGI worker; SQLite-appropriate)                                                    |
 
 ## Architecture & design decisions
 
@@ -79,7 +81,7 @@ Key decisions:
   an `all_tags=false` OR mode; unknown type filters are rejected (400), not
   silently ignored.
 - **Browsers always revalidate** static pages/JS (`Cache-Control:
-  no-cache`); a deploy can never be masked by stale cached assets.
+no-cache`); a deploy can never be masked by stale cached assets.
 
 ## Run locally
 
@@ -107,11 +109,11 @@ startup at `ioc_watchlist.db`, overridable with `IOC_WATCHLIST_DB`.
 
 ### Environment variables
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `IOC_WATCHLIST_DB` | `ioc_watchlist.db` | SQLite file path (set it to a mounted/absolute path in deployment) |
-| `PORT` | – | Injected by the platform (Render); consumed by the start command |
-| `PYTHON_VERSION` | `.python-version` (3.12) | Render Python runtime version |
+| Variable           | Default                  | Purpose                                                            |
+| ------------------ | ------------------------ | ------------------------------------------------------------------ |
+| `IOC_WATCHLIST_DB` | `ioc_watchlist.db`       | SQLite file path (set it to a mounted/absolute path in deployment) |
+| `PORT`             | –                        | Injected by the platform (Render); consumed by the start command   |
+| `PYTHON_VERSION`   | `.python-version` (3.12) | Render Python runtime version                                      |
 
 ## Run tests
 
@@ -131,14 +133,14 @@ no network, no live server needed.
 
 ## API endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/iocs` | Create IOC: `{"value": "...", "tags": ["a","b"]}` → 201. Echoes the raw `value`; 400 invalid value, 409 duplicate, 422 bad payload |
-| `GET` | `/api/iocs` | List: optional `type=`, `tags=` (comma-separated), `all_tags=true|false` (default true). Serves re-defanged values |
-| `DELETE` | `/api/iocs/{id}` | Delete → 204, or 404 |
-| `GET` | `/api/tags` | Existing tag names (alphabetical), optional `?q=` substring filter — powers the suggestion popups |
-| `GET` | `/`, `/iocs` | Static pages served by FastAPI |
-| `GET` | `/docs` | OpenAPI UI |
+| Method   | Path             | Description                                                                                                                        |
+| -------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/api/iocs`      | Create IOC: `{"value": "...", "tags": ["a","b"]}` → 201. Echoes the raw `value`; 400 invalid value, 409 duplicate, 422 bad payload |
+| `GET`    | `/api/iocs`      | List: optional `type=`, `tags=` (comma-separated), `all_tags=true \| false` (default true). Serves re-defanged values               |
+| `DELETE` | `/api/iocs/{id}` | Delete → 204, or 404                                                                                                               |
+| `GET`    | `/api/tags`      | Existing tag names (alphabetical), optional `?q=` substring filter — powers the suggestion popups                                  |
+| `GET`    | `/`, `/iocs`     | Static pages served by FastAPI                                                                                                     |
+| `GET`    | `/docs`          | OpenAPI UI                                                                                                                         |
 
 ```sh
 # create (defanged input is fine)
@@ -163,22 +165,28 @@ Deployed as a Render **Web Service** with the native Python runtime.
 2. **Render → New → Web Service**, connect the repository.
 3. **Runtime**: Python 3.12 (`PYTHON_VERSION=3.12`).
 4. **Build command**:
+
    ```sh
    pip install uv && uv sync --no-dev --frozen
    ```
+
 5. **Start command**:
+
    ```sh
    uv run uvicorn ioc_watchlist.main:app --host 0.0.0.0 --port $PORT
    ```
+
    (`$PORT` is injected by Render.)
-6. **Health check path**: `/iocs` (or `/`).
-   Optional: set the root URL… not needed; pages are served at `/`.
+6. **Health check path**: `/iocs` (or `/`); other settings are optional —
+   pages are served at `/`.
 7. **Database persistence (important)**: SQLite needs a writable, persistent
    path. On Render, attach a **Disk** (paid instance types) mounted at e.g.
    `/var/data` and set:
+
    ```sh
    IOC_WATCHLIST_DB=/var/data/ioc_watchlist.db
    ```
+
    Without a persistent disk (free tier), the DB only lives in the
    container filesystem and is **wiped on every deploy/restart**.
 8. **Environment variables**: none are required beyond the disk path above
@@ -192,6 +200,7 @@ backfills `raw_value` from canonical values). To seed a fresh database:
 curl -X POST $BASE/api/iocs -H 'Content-Type: application/json' \
   -d '{"value": "8.8.8.8", "tags": ["dns", "malware"]}'
 ```
+
 or create a few entries via `/docs`.
 
 <details>
@@ -207,9 +216,11 @@ VOLUME /data
 EXPOSE 8000
 CMD ["sh", "-c", "uv run uvicorn ioc_watchlist.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 ```
+
 ```sh
 docker run -p 8000:8000 -v ioc_data:/data ioc-watchlist
 ```
+
 </details>
 
 ## Known limitations
@@ -222,7 +233,7 @@ docker run -p 8000:8000 -v ioc_data:/data ioc-watchlist
 - **No update endpoint**: IOCs are immutable once created (delete +
   re-create instead) — tags of an existing IOC cannot be edited.
 - **Near-duplicate tags still possible**: `phising` vs `phishing` can
-  coexist; the suggestion popup only *nudges* toward existing tags, it does
+  coexist; the suggestion popup only _nudges_ toward existing tags, it does
   not hard-block typo variants, and there is no tag-rename/merge endpoint.
 - **Frontend logic untested in automation**: page JS is validated by static
   contract tests (markup/scripts/headers), not by browser-level tests.
@@ -265,7 +276,7 @@ docker run -p 8000:8000 -v ioc_data:/data ioc-watchlist
 - **CORS**: not configured — the API is same-origin only (served by the
   same FastAPI app).
 - **Domain semantics**:
-  - defanged input is *expected and accepted*; stored canonical, displayed
+  - defanged input is _expected and accepted_; stored canonical, displayed
     re-defanged.
   - domain requires ≥2 labels and an alphabetic TLD; single-label hosts
     (`localhost`) are not domains — but may appear as URL hosts.

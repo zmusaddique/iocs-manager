@@ -1,7 +1,11 @@
 # Development log — prompts, build time, tokens
 
-AI-assisted build history for the IOC watchlist manager (GLM via OpenCode).
-All prompts below were issued on **2026-11-10** in a single session.
+AI-assisted build history for the IOC watchlist manager (GLM
+`opencode/glm-5.3-flash-free` via OpenCode). All prompts below were issued
+on **2026-11-10** in a single session.
+
+Screenshots under `images/` show the prompt/agent session as it unfolded
+(filenames are sequential: `Pasted image (N).png`).
 
 ---
 
@@ -34,6 +38,8 @@ _Decision round answered_: accept & normalize defanged values · separate
 add-tag chips widget · reject duplicates with a clear error · serve the
 frontend from FastAPI.
 
+![Session screenshot: the initial build request and the agent's plan](./images/Pasted%20image.png)
+
 ### 2. Permission policy
 
 > You, as the agent should not have edit permissions to create / edit
@@ -46,6 +52,8 @@ frontend from FastAPI.
 
 _Decision round answered_: create all test files under `tests/` (+ pytest
 config in `pyproject.toml`) · in-process `TestClient`, no live-server tests.
+
+![Session screenshot: the test-suite request](./images/Pasted%20image%20%282%29.png)
 
 ### 4. Commit message
 
@@ -63,40 +71,58 @@ GET serves re-defanged values only (no raw/canonical exposed) · hashes
 re-chunked with hyphens when displayed · raw column with first-entry-wins ·
 auto-migrate the existing database.
 
+![Session screenshot: the raw/canonical + re-defanged listing request](./images/Pasted%20image%20%284%29.png)
+
 ### 6. Defanged-hash test gaps
 
 > The test cases in `tests/test_detection.py` don't seem to have defanging
 > tests. Identified gaps: 1) Zero defanged hash test cases (space-separated,
-> bracketed, hyphenated chunking). 2) Intermediate boundary lengths (31/39/63
-> characters) that might slip past loose regexes. Just add the test cases
-> accordingly and don't make any changes in routes for now.
+> bracketed, hyphenated chunking). 2) Intermediate boundary lengths
+> (31/39/63 characters) that might slip past loose regexes. Just add the
+> test cases accordingly and don't make any changes in routes for now.
 
 _Decision round answered_: implement chunk recovery in `detection.py` + the
 tests; routes stay untouched.
 
-### 7. Suggestions on the IOCs page
+![Session screenshot: the defanged-hash test-gap report](./images/Pasted%20image%20%283%29.png)
 
-> Perfect, implement this in the tags field on iocs page as well
+### 7. Tag autocomplete on the home page
 
-### 8. Autocomplete bug report
+> While typing the tags, if any same tags exist it should pop up for
+> selection. This will help us prevent having duplicated tag values and
+> help in analysis. Do this only for the home page now.
+
+![Session screenshot: the home-page tag autocomplete request](./images/Pasted%20image%20%285%29.png)
+
+### 8. Suggestions on the IOCs page
+
+> Perfect, implement this in the tags field on iocs page as well.
+
+![Session screenshot: extending suggestions to the /iocs filter field](./images/Pasted%20image%20%286%29.png)
+
+### 9. Autocomplete bug report
 
 > The autocomplete does not work on /iocs page
 
-![Placeholder: screenshot of the All IOCs page with "md" typed in the tags
-filter and no suggestion popup](images/iocs-autocomplete-broken.png)
+![Screenshot: the All IOCs page with "md" typed in the tags filter and no
+suggestion popup](./images/Pasted%20image%20%287%29.png)
 
-### 9. Filter semantics question
+### 10. Filter semantics question
 
 > `static/iocs.html` — What does "all must match" mean?
 
-### 10. Match-mode toggle
+![Session screenshot: the filter-semantics question](./images/Pasted%20image%20%288%29.png)
+
+### 11. Match-mode toggle
 
 > C, that should be better
 
 _(meaning option C: an all/any match-mode toggle, keeping AND as the
 default)_
 
-### 11. Documentation & deployment
+![Session screenshot: the match-mode toggle request](./images/Pasted%20image%20%289%29.png)
+
+### 12. Documentation & deployment
 
 > The project is now deployed on render. Update the README in accordance
 > with recent changes. Also include these details covering: what the
@@ -116,20 +142,33 @@ default)_
 
 ## Build time
 
-| | Timestamp | Duration |
-|---|---|---|
-| Start (first prompt received) | _fill in_ | – |
-| End (app working & deployed) | _fill in_ | – |
-| **Total (first prompt → working app)** | – | _fill in_ |
+Wall-clock (analyst) vs machine (session) time, per the usage dashboard:
+
+| Metric                       | Value              |
+| ---------------------------- | ------------------ |
+| Start (first prompt)         | 7:30 pm, 2026-11-10|
+| End (app working & deployed) | 10:00 pm           |
+| **Total wall-clock**         | **2.5 hrs**        |
+| Session run time (machine)   | 1h 07m 15s         |
 
 ## Tokens consumed
 
-_(from the provider usage dashboard — add the actual screenshot)_
+From the session usage dashboard (OpenCode, model
+`opencode/glm-5.3-flash-free`); totals include cached input reads, which is
+why `total ≠ input + output`:
 
-| Metric | Value |
-|---|---|
-| Total input tokens | _fill in_ |
-| Total output tokens | _fill in_ |
-| Total tokens | _fill in_ |
+| Metric              | Value        |
+| ------------------- | ------------ |
+| Total input tokens  | 978,799      |
+| Total output tokens | 63,066       |
+| Reasoning tokens    | 61,210       |
+| Cache read          | 9,011,904 (90.2% cache rate) |
+| **Total tokens**    | **10,114,979** |
+| **Estimated cost**  | **$0.48**    |
+| Steps / tool calls  | 129 / 127    |
 
-![Placeholder: token usage dashboard screenshot](images/token-usage.png)
+![Screenshot: OpenCode token-usage summary (context, input/output, cache,
+cost)](./images/Pasted%20image%20%2810%29.png)
+
+![Screenshot: OpenCode usage dialog (context breakdown and per-model
+totals)](./images/Pasted%20image%20%2811%29.png)
