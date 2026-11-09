@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>IOC Watchlist</title>
+</head>
+<body>
+  <nav>
+    <a href="/">Add IOC</a> |
+    <a href="/iocs">IOC List</a>
+  </nav>
+  <hr>
+
+  <h1>Add IOC</h1>
+
+  <form id="ioc-form">
+    <label>
+      IOC value<br>
+      <input type="text" id="value" name="value" placeholder="e.g. 1.2.3.4, evil.com, hxxp://bad[.]site/x, &lt;md5&gt;" required>
+    </label>
+    <br><br>
+
+    <label>
+      Tags<br>
+      <input type="text" id="tag-input" placeholder="tag name">
+    </label>
+    <button type="button" id="add-tag-btn">Add tag</button>
+
+    <ul id="tag-chips" style="list-style: none; padding: 0;">
+      <!-- added tag chips go here -->
+    </ul>
+    <br>
+
+    <button type="submit">Create IOC</button>
+  </form>
+
+  <p id="message" role="alert"></p>
+
+  <script src="/static/js/create.js"></script>
+</body>
+</html>

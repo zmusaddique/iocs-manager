@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>IOC Watchlist - All IOCs</title>
+</head>
+<body>
+  <nav>
+    <a href="/">Add IOC</a> |
+    <a href="/iocs">IOC List</a>
+  </nav>
+  <hr>
+
+  <h1>All IOCs</h1>
+
+  <form id="filter-form">
+    <label>
+      Type
+      <select id="filter-type">
+        <option value="">All</option>
+        <option value="ipv4">ipv4</option>
+        <option value="domain">domain</option>
+        <option value="url">url</option>
+        <option value="md5">md5</option>
+        <option value="sha1">sha1</option>
+        <option value="sha256">sha256</option>
+      </select>
+    </label>
+
+    <label>
+      Tags (comma-separated, all must match)
+      <input type="text" id="filter-tags" placeholder="e.g. malware, c2">
+    </label>
+
+    <button type="submit">Filter</button>
+    <button type="button" id="clear-btn">Clear</button>
+  </form>
+
+  <p id="status"></p>
+
+  <table border="1" cellpadding="6">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Value</th>
+        <th>Type</th>
+        <th>Tags</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="ioc-rows">
+      <!-- rows go here -->
+    </tbody>
+  </table>
+
+  <script src="/static/js/list.js"></script>
+</body>
+</html>

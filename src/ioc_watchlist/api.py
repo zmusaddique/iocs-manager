@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException, Query, Response
+
+from .db import get_conn
+from .detection import IOC_TYPES, InvalidIOCError, detect
+from .schemas import IOCCreate, IOCList, IOCRead, IOCTag
+
+router = APIRouter(prefix="/api", tags=["iocs"])
+
+
+def _clean_tags(tags: list[str]) -> list[str]:
+    """Strip, lowercase and de-duplicate tag names while preserving order."""
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for tag in tags:
+        name = tag.strip().lower()
+        if name and name not in seen and len(name) <= 64:
+            seen.add(name)
+            cleaned.append(name)
+    return cleaned
+
+
+def _get_or_create_tag_ids(conn, names: list[str]) -> list[int]:
+    ids = []
+    for name in names:
+        row = conn.execute(
+            "SELECT id FROM tags WHERE name = ?", (name,)
+        ).fetchone()
+        if row is None:
+            cur = conn.execute("INSERT INTO tags (name) VALUES (?)", (name,))
+            ids.append(cur.lastrowid)
+        else:
+            ids.append(row["id"])
+    return ids
+
+
+def _fetch_ioc(conn, ioc_id: int) -> IOCRead | None:
+    row = conn.execute(
+        "SELECT id, value, type, created_at FROM iocs WHERE id = ?", (ioc_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    tag_rows = conn.execute(
+        """
+        SELECT t.id, t.name
+        FROM ioc_tags it JOIN tags t ON t.id = it.tag_id
+        WHERE it.ioc_id = ? ORDER BY t.name
+        """,
+        (ioc_id,),
+    ).fetchall()
+    return IOCRead(
+        id=row["id"],
+        value=row["value"],
+        type=row["type"],
+        created_at=row["created_at"],
+        tags=[IOCTag(id=t["id"], name=t["name"]) for t in tag_rows],
+    )
+
+
+@router.post("/iocs", response_model=IOCRead, status_code=201)
+def create_ioc(payload: IOCCreate) -> IOCRead:
+    try:
+        ioc_type, normalized = detect(payload.value)
+    except InvalidIOCError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid IOC value: {exc.value!r} is {exc.reason}",
+        ) from exc
+
+    with get_conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        existing = conn.execute(
+            "SELECT id FROM iocs WHERE value = ?", (normalized,)
+        ).fetchone()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"IOC {normalized!r} already exists "
+                    f"(id {existing['id']})"
+                ),
+            )
+
+        cur = conn.execute(
+            "INSERT INTO iocs (value, type) VALUES (?, ?)",
+            (normalized, ioc_type),
+        )
+        ioc_id = cur.lastrowid
+
+        tag_ids = _get_or_create_tag_ids(conn, _clean_tags(payload.tags))
+        conn.executemany(
+            "INSERT OR IGNORE INTO ioc_tags (ioc_id, tag_id) VALUES (?, ?)",
+            [(ioc_id, tid) for tid in tag_ids],
+        )
+
+        created = _fetch_ioc(conn, ioc_id)
+
+    assert created is not None
+    return created
+
+
+@router.get("/iocs", response_model=IOCList)
+def list_iocs(
+    type: str | None = Query(default=None),
+    tags: str | None = Query(
+        default=None,
+        description="Comma-separated tag names; an IOC must have ALL of them",
+    ),
+) -> IOCList:
+    if type is not None and type not in IOC_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unknown type {type!r}. Supported types: "
+                + ", ".join(IOC_TYPES)
+            ),
+        )
+
+    tag_names = [t.strip().lower() for t in (tags or "").split(",") if t.strip()]
+
+    sql = """
+        SELECT i.id, i.value, i.type, i.created_at
+        FROM iocs i
+    """
+    params: list = []
+
+    # SQL clause order: FROM -> JOIN -> WHERE -> GROUP BY -> HAVING.
+    # Params must follow the same order: tag names (IN clause), then type.
+    if tag_names:
+        placeholders = ", ".join("?" for _ in tag_names)
+        sql += f"""
+            JOIN ioc_tags it ON it.ioc_id = i.id
+            JOIN tags t ON t.id = it.tag_id AND t.name IN ({placeholders})
+        """
+        params.extend(tag_names)
+
+    wheres = []
+    if type:
+        wheres.append("i.type = ?")
+        params.append(type)
+
+    if wheres:
+        sql += "\nWHERE " + " AND ".join(wheres)
+
+    if tag_names:
+        sql += """
+            GROUP BY i.id
+            HAVING COUNT(DISTINCT t.id) = ?
+        """
+        params.append(len(tag_names))
+
+    sql += " ORDER BY i.created_at DESC, i.id DESC"
+
+    with get_conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        items = [_fetch_ioc(conn, r["id"]) for r in rows]
+        return IOCList(items=items, total=len(items))
+
+
+@router.delete("/iocs/{ioc_id}", status_code=204)
+def delete_ioc(ioc_id: int) -> Response:
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM iocs WHERE id = ?", (ioc_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(
+                status_code=404, detail=f"IOC id {ioc_id} not found"
+            )
+    return Response(status_code=204)
