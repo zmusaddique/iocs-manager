@@ -2,6 +2,7 @@ const rowsBody = document.getElementById("ioc-rows");
 const status = document.getElementById("status");
 const filterType = document.getElementById("filter-type");
 const filterTags = document.getElementById("filter-tags");
+const filterTagMode = document.getElementById("filter-tag-mode");
 const suggestions = document.getElementById("tag-suggestions");
 
 function filterTokens(value) {
@@ -25,7 +26,11 @@ function replacePartialToken(input, name) {
 async function load() {
   const params = new URLSearchParams();
   if (filterType.value) params.set("type", filterType.value);
-  if (filterTags.value.trim()) params.set("tags", filterTags.value.trim());
+  if (filterTags.value.trim()) {
+    params.set("tags", filterTags.value.trim());
+    // match mode only carries meaning together with a tags filter
+    params.set("all_tags", filterTagMode.value === "any" ? "false" : "true");
+  }
   const query = params.toString();
   const url = "/api/iocs" + (query ? `?${query}` : "");
 
@@ -105,6 +110,7 @@ document.getElementById("filter-form").addEventListener("submit", (e) => {
 document.getElementById("clear-btn").addEventListener("click", () => {
   filterType.value = "";
   filterTags.value = "";
+  filterTagMode.value = "all";
   tagSuggest.hide(suggestions);
   load();
 });

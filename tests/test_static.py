@@ -41,6 +41,17 @@ class TestPages:
         assert '<script src="/static/js/tag-suggest.js">' in html
         assert html.index("tag-suggest.js") < html.index("list.js")
 
+    def test_iocs_page_has_match_mode_toggle(self, client):
+        html = client.get("/iocs").text
+        assert 'id="filter-tag-mode"' in html
+        assert '<option value="all" selected>all of the tags</option>' in html
+        assert '<option value="any">any of the tags</option>' in html
+
+    def test_list_js_sends_match_mode(self, client):
+        js = client.get("/static/js/list.js").text
+        assert "all_tags" in js
+        assert 'filterTagMode.value === "any"' in js
+
 
 class TestStaticMount:
     def test_create_js_served(self, client):

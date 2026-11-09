@@ -130,7 +130,14 @@ def list_iocs(
     type: str | None = Query(default=None),
     tags: str | None = Query(
         default=None,
-        description="Comma-separated tag names; an IOC must have ALL of them",
+        description="Comma-separated tag names",
+    ),
+    all_tags: bool = Query(
+        default=True,
+        description=(
+            "Meaning of a `tags` filter: if true, an IOC must have ALL of "
+            "the given tags; if false, ANY of them"
+        ),
     ),
 ) -> IOCList:
     if type is not None and type not in IOC_TYPES:
@@ -169,11 +176,19 @@ def list_iocs(
         sql += "\nWHERE " + " AND ".join(wheres)
 
     if tag_names:
-        sql += """
+        # AND mode requires every listed tag; OR mode requires at least one.
+        # (ioc, tag) pairs are unique per the junction PK, so the joined tag
+        # count can only reach the requested amount exactly.
+        having = (
+            "HAVING COUNT(DISTINCT t.id) = ?"
+            if all_tags
+            else "HAVING COUNT(DISTINCT t.id) >= ?"
+        )
+        sql += f"""
             GROUP BY i.id
-            HAVING COUNT(DISTINCT t.id) = ?
+            {having}
         """
-        params.append(len(tag_names))
+        params.append(len(tag_names) if all_tags else 1)
 
     sql += " ORDER BY i.created_at DESC, i.id DESC"
 

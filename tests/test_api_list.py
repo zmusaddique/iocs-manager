@@ -40,6 +40,59 @@ class TestListAll:
         assert data["total"] == 4
 
 
+class TestTagMode:
+    """The all/any toggle for the tags filter (all_tags query param)."""
+
+    def setup_plant(self, client):
+        # ioc1: [a, b]; ioc2: [a]; ioc3: [b]  (ids ascend in plant order)
+        post_ioc(client, "8.8.8.8", ["a", "b"])
+        post_ioc(client, "evil.com", ["a"])
+        post_ioc(client, "1.1.1.1", ["b"])
+
+    def test_all_mode_is_the_default(self, client):
+        self.setup_plant(client)
+        assert client.get("/api/iocs?tags=a,b").json()["total"] == 1
+        assert client.get(
+            "/api/iocs?tags=a,b&all_tags=true"
+        ).json()["total"] == 1
+
+    def test_any_mode_widens_the_net(self, client):
+        self.setup_plant(client)
+        data = client.get("/api/iocs?tags=a,b&all_tags=false").json()
+        assert data["total"] == 3
+        values = [i["value"] for i in data["items"]]
+        assert set(values) == {
+            "8[.]8[.]8[.]8",
+            "evil[.]com",
+            "1[.]1[.]1[.]1",
+        }
+
+    def test_any_mode_with_single_tag_matches_all_mode(self, client):
+        self.setup_plant(client)
+        only_a = client.get("/api/iocs?tags=a&all_tags=false").json()
+        assert only_a["total"] == 2  # ioc1 and ioc2
+
+    def test_any_mode_combined_with_type(self, client):
+        self.setup_plant(client)
+        data = client.get(
+            "/api/iocs?type=ipv4&tags=a,b&all_tags=false"
+        ).json()
+        assert data["total"] == 2
+        assert {i["value"] for i in data["items"]} == {
+            "8[.]8[.]8[.]8",
+            "1[.]1[.]1[.]1",
+        }
+
+    def test_mode_flag_must_be_boolean(self, client):
+        response = client.get("/api/iocs?tags=a&all_tags=banana")
+        assert response.status_code == 422
+
+    def test_mode_flag_ignored_without_tags(self, client):
+        self.setup_plant(client)
+        # no tags filter -> mode flag is meaningless, must not break anything
+        assert client.get("/api/iocs?all_tags=false").json()["total"] == 3
+
+
 class TestTypeFilter:
     @pytest.mark.parametrize(("wanted_type", "expected_value"), [
         ("ipv4", "8[.]8[.]8[.]8"),

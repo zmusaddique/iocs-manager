@@ -28,8 +28,16 @@
     </label>
 
     <label>
-      Tags (comma-separated, all must match)
+      Tags (comma-separated)
       <input type="text" id="filter-tags" placeholder="e.g. malware, c2">
+    </label>
+
+    <label>
+      An IOC must match
+      <select id="filter-tag-mode">
+        <option value="all" selected>all of the tags</option>
+        <option value="any">any of the tags</option>
+      </select>
     </label>
 
     <ul id="tag-suggestions" style="list-style: none; padding: 0;">
