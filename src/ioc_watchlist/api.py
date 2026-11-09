@@ -3,8 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from .db import get_conn
-from .detection import IOC_TYPES, InvalidIOCError, detect
-from .schemas import IOCCreate, IOCList, IOCRead, IOCTag
+from .detection import IOC_TYPES, InvalidIOCError, defang_for_display, detect
+from .schemas import IOCCreate, IOCCreated, IOCList, IOCRead, IOCTag
 
 router = APIRouter(prefix="/api", tags=["iocs"])
 
@@ -35,9 +35,11 @@ def _get_or_create_tag_ids(conn, names: list[str]) -> list[int]:
     return ids
 
 
-def _fetch_ioc(conn, ioc_id: int) -> IOCRead | None:
+def _fetch_ioc_row(conn, ioc_id: int) -> dict | None:
+    """Canonical row internals (canonical value kept under 'canonical')."""
     row = conn.execute(
-        "SELECT id, value, type, created_at FROM iocs WHERE id = ?", (ioc_id,)
+        "SELECT id, value, raw_value, type, created_at FROM iocs WHERE id = ?",
+        (ioc_id,),
     ).fetchone()
     if row is None:
         return None
@@ -49,17 +51,40 @@ def _fetch_ioc(conn, ioc_id: int) -> IOCRead | None:
         """,
         (ioc_id,),
     ).fetchall()
-    return IOCRead(
+    return {
+        "id": row["id"],
+        "canonical": row["value"],
+        "raw_value": row["raw_value"],
+        "type": row["type"],
+        "created_at": row["created_at"],
+        "tags": [IOCTag(id=t["id"], name=t["name"]) for t in tag_rows],
+    }
+
+
+def _ioc_created(row: dict) -> IOCCreated:
+    """POST response: echo the raw input exactly as submitted."""
+    return IOCCreated(
         id=row["id"],
-        value=row["value"],
+        value=row["raw_value"],
         type=row["type"],
         created_at=row["created_at"],
-        tags=[IOCTag(id=t["id"], name=t["name"]) for t in tag_rows],
+        tags=row["tags"],
     )
 
 
-@router.post("/iocs", response_model=IOCRead, status_code=201)
-def create_ioc(payload: IOCCreate) -> IOCRead:
+def _ioc_display(row: dict) -> IOCRead:
+    """GET response: re-defanged from the canonical value."""
+    return IOCRead(
+        id=row["id"],
+        value=defang_for_display(row["canonical"], row["type"]),
+        type=row["type"],
+        created_at=row["created_at"],
+        tags=row["tags"],
+    )
+
+
+@router.post("/iocs", response_model=IOCCreated, status_code=201)
+def create_ioc(payload: IOCCreate) -> IOCCreated:
     try:
         ioc_type, normalized = detect(payload.value)
     except InvalidIOCError as exc:
@@ -83,8 +108,8 @@ def create_ioc(payload: IOCCreate) -> IOCRead:
             )
 
         cur = conn.execute(
-            "INSERT INTO iocs (value, type) VALUES (?, ?)",
-            (normalized, ioc_type),
+            "INSERT INTO iocs (value, raw_value, type) VALUES (?, ?, ?)",
+            (normalized, payload.value, ioc_type),
         )
         ioc_id = cur.lastrowid
 
@@ -94,10 +119,10 @@ def create_ioc(payload: IOCCreate) -> IOCRead:
             [(ioc_id, tid) for tid in tag_ids],
         )
 
-        created = _fetch_ioc(conn, ioc_id)
+        created = _fetch_ioc_row(conn, ioc_id)
 
     assert created is not None
-    return created
+    return _ioc_created(created)
 
 
 @router.get("/iocs", response_model=IOCList)
@@ -154,7 +179,11 @@ def list_iocs(
 
     with get_conn() as conn:
         rows = conn.execute(sql, params).fetchall()
-        items = [_fetch_ioc(conn, r["id"]) for r in rows]
+        items = []
+        for r in rows:
+            row = _fetch_ioc_row(conn, r["id"])
+            assert row is not None
+            items.append(_ioc_display(row))
         return IOCList(items=items, total=len(items))
 
 

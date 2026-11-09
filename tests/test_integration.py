@@ -22,13 +22,15 @@ class TestAnalystWorkflows:
         data = client.get("/api/iocs").json()
         assert data["total"] == 4
         values = [i["value"] for i in data["items"]]
-        assert "phish.example.net" in values  # was stored fanged
-        assert "http://203.0.113.66:8080/gate.php" in values  # port kept
+        assert "phish[.]example[.]net" in values  # re-defanged from canonical
+        # hyphen-chunked hash display: 8 hex chars per block
+        assert any(v.count("-") == 3 for v in values)  # the md5
+        assert "hxxp://203[.]0[.]113[.]66:8080/gate[.]php" in values
 
         # 3. Filter by tag + type for a campaign search
         c2_urls = client.get("/api/iocs?type=url&tags=c2").json()
         assert c2_urls["total"] == 1
-        assert "gate.php" in c2_urls["items"][0]["value"]
+        assert "gate[.]php" in c2_urls["items"][0]["value"]
 
         # 4. Delete the phished domain after takedown
         phish = client.get("/api/iocs?type=domain").json()["items"][0]
@@ -54,7 +56,7 @@ class TestAnalystWorkflows:
         assert client.get("/api/iocs?tags=campaign-x").json()["total"] == 1
         assert _json_url_item(
             client.get("/api/iocs?tags=campaign-x")
-        ) == "evil.com"
+        ) == "evil[.]com"
 
     def test_invalid_input_never_pollutes_the_list(self, client):
         post_ioc(client, "8.8.8.8", ["good"])
@@ -82,7 +84,7 @@ class TestPersistenceAcrossRestart:
         # DB file: schema init must be idempotent and the data must persist.
         data = second_client.get("/api/iocs").json()
         assert data["total"] == 1
-        assert data["items"][0]["value"] == "8.8.8.8"
+        assert data["items"][0]["value"] == "8[.]8[.]8[.]8"  # re-defanged
         assert tag_names(data["items"][0]) == ["dns", "mal"]
 
         followup = post_ioc(second_client, "evil.com")

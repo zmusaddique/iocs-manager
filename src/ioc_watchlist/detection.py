@@ -109,6 +109,37 @@ def _detect_url(value: str) -> str | None:
     return url_normalize(value)
 
 
+URL_SCHEME_DISPLAY = {"http": "hxxp", "https": "hxxps", "ftp": "ftp"}
+
+
+def defang_for_display(canonical: str, ioc_type: str) -> str:
+    """Re-defang a canonical IOC value for safe display in listings.
+
+    - ipv4 / domain: dots become "[.]"  (8[.]8[.]8[.]8, evil[.]com)
+    - url: scheme becomes hxxp / hxxps (ftp keeps its scheme) and every dot
+      in the rest of the URL (host, path, query) becomes "[.]"; port,
+      userinfo and punctuation are preserved.
+    - md5 / sha1 / sha256: "re-defanging" a pure-hex hash defangs nothing
+      meaningful, so it is re-chunked into 8-char blocks joined with
+      hyphens (d41d8cd9-8f00b204-...), matching how chunked hashes are
+      written in feeds.
+    """
+    if ioc_type in ("md5", "sha1", "sha256"):
+        return "-".join(
+            canonical[i : i + 8] for i in range(0, len(canonical), 8)
+        )
+
+    if ioc_type == "url":
+        scheme, _, rest = canonical.partition("://")
+        return (
+            URL_SCHEME_DISPLAY.get(scheme, scheme)
+            + "://"
+            + rest.replace(".", "[.]")
+        )
+
+    return canonical.replace(".", "[.]")
+
+
 def detect(raw: str) -> tuple[str, str]:
     """Detect the IOC type of `raw`.
 

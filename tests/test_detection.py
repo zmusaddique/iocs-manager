@@ -1,10 +1,12 @@
 """Unit tests for the IOC type-detection business logic (detection.py)."""
 
 import pytest
+from ioc_fanger import fang
 
 from ioc_watchlist.detection import (
     IOC_TYPES,
     InvalidIOCError,
+    defang_for_display,
     detect,
     normalize_value,
 )
@@ -182,6 +184,73 @@ class TestFangedHashes:
         detected_type, normalized = detect(hyphenated_ioc)
         assert detected_type in ("domain", "url")
         assert normalized == hyphenated_ioc
+
+
+class TestDefangForDisplay:
+    """Listing display: canonical values are re-defanged server-side."""
+
+    @pytest.mark.parametrize(("canonical", "ioc_type", "expected"), [
+        ("8.8.8.8", "ipv4", "8[.]8[.]8[.]8"),
+        ("255.255.255.255", "ipv4", "255[.]255[.]255[.]255"),
+        ("evil.com", "domain", "evil[.]com"),
+        ("sub.evil.co.uk", "domain", "sub[.]evil[.]co[.]uk"),
+        ("http://evil.com/", "url", "hxxp://evil[.]com/"),
+        ("https://evil.com:8443/P?Q=1#F",
+         "url", "hxxps://evil[.]com:8443/P?Q=1#F"),
+        ("http://8.8.8.8:8080/dns", "url", "hxxp://8[.]8[.]8[.]8:8080/dns"),
+        ("http://user@evil.com/", "url", "hxxp://user@evil[.]com/"),
+        ("ftp://files.example.com/pub/f.csv",
+         "url", "ftp://files[.]example[.]com/pub/f[.]csv"),
+        (VALID_MD5, "md5", "d41d8cd9-8f00b204-e9800998-ecf8427e"),
+        (VALID_SHA1, "sha1",
+         "2b2b2b2b-2b2b2b2b-2b2b2b2b-2b2b2b2b-2b2b2b2b"),
+        (VALID_SHA256, "sha256",
+         "308940cd-e82f58f2-1d3d80d0-d16f23b8-e5d1cb2c-e9a6b0a5-"
+         "e64b3d13-a58f2c19"),
+    ])
+    def test_canonical_to_display(self, canonical, ioc_type, expected):
+        assert defang_for_display(canonical, ioc_type) == expected
+
+    @pytest.mark.parametrize(("canonical", "ioc_type"), [
+        ("8.8.8.8", "ipv4"),
+        ("evil.com", "domain"),
+        ("http://evil.com/", "url"),
+        ("https://evil.com:8443/P?Q=1#F", "url"),
+        ("ftp://files.example.com/pub/f.csv", "url"),
+    ])
+    def test_fang_of_display_recovers_canonical(self, canonical, ioc_type):
+        # the display value must be defang-safe: fangs back to the canonical
+        assert fang(defang_for_display(canonical, ioc_type)) == canonical
+
+    @pytest.mark.parametrize(("canonical", "ioc_type", "block_count"), [
+        (VALID_MD5, "md5", 4),
+        (VALID_SHA1, "sha1", 5),
+        (VALID_SHA256, "sha256", 8),
+    ])
+    def test_hash_display_chunks_every_8_chars(self, canonical, ioc_type,
+                                               block_count):
+        display = defang_for_display(canonical, ioc_type)
+        blocks = display.split("-")
+        assert len(blocks) == block_count
+        assert all(len(b) == 8 and set(b) <= set("0123456789abcdef")
+                   for b in blocks)
+        # re-joining the chunks (i.e. reverting the chunking) yields the
+        # canonical hex unchanged
+        assert "".join(blocks) == canonical
+
+    def test_display_is_idempotent_for_every_type(self):
+        cases = [
+            ("8.8.8.8", "ipv4"),
+            ("evil.com", "domain"),
+            ("http://evil.com/", "url"),
+        ]
+        for canonical, ioc_type in cases:
+            display = defang_for_display(canonical, ioc_type)
+            assert fang(display) == canonical  # survives normal defanging
+
+        # hashes: re-joining the display chunks recovers the canonical hex
+        hash_display = defang_for_display(VALID_MD5, "md5")
+        assert hash_display.replace("-", "") == VALID_MD5
 
 
 class TestInvalidIOCError:

@@ -40,28 +40,45 @@ class TestCreateSuccess:
             assert response.status_code == 201
             assert response.json()["type"] == wanted_type, value
 
-    def test_defanged_value_stored_fanged(self, client):
+    def test_defanged_value_is_echoed_raw_and_listed_defanged(self, client):
         item = post_ioc(client, "1.2.3[.]4").json()
-        assert item["value"] == "1.2.3.4"
+        assert item["value"] == "1.2.3[.]4"  # raw, exactly as submitted
         assert item["type"] == "ipv4"
+        # the listing never exposes the canonical value directly
+        listed = client.get("/api/iocs").json()["items"][0]
+        assert listed["value"] == "1[.]2[.]3[.]4"
 
-    def test_hxxp_url_stored_http(self, client):
+    def test_hxxp_url_echoed_raw_and_listed_defanged(self, client):
         item = post_ioc(client, "hxxp://bad[.]site/x?p=1").json()
-        assert item["value"] == "http://bad.site/x?p=1"
+        assert item["value"] == "hxxp://bad[.]site/x?p=1"
         assert item["type"] == "url"
+        listed = client.get("/api/iocs").json()["items"][0]
+        assert listed["value"] == "hxxp://bad[.]site/x?p=1"
 
-    def test_surrounding_whitespace_stripped(self, client):
+    def test_whitespace_stripped_for_canonical_but_echoed_verbatim(
+        self, client
+    ):
         item = post_ioc(client, "  evil.com  ").json()
-        assert item["value"] == "evil.com"
+        assert item["value"] == "  evil.com  "  # raw verbatim echo
+        listed = client.get("/api/iocs").json()["items"][0]
+        assert listed["value"] == "evil[.]com"  # canonical was trimmed
 
-    def test_url_default_port_stripped_in_create(self, client):
+    def test_url_default_port_stripped_from_canonical_only(self, client):
         item = post_ioc(client, "HTTPS://EXAMPLE.com:443/").json()
-        assert item["value"] == "https://example.com/"
+        assert item["value"] == "HTTPS://EXAMPLE.com:443/"  # raw echo
+        listed = client.get("/api/iocs").json()["items"][0]
+        assert listed["value"] == "hxxps://example[.]com/"
 
-    def test_uppercase_hash_stored_lowercase(self, client):
+    def test_uppercase_hash_raw_echo_lowercase_display(self, client):
         item = post_ioc(client, VALID_MD5.upper()).json()
-        assert item["value"] == VALID_MD5
+        assert item["value"] == VALID_MD5.upper()  # raw echo keeps case
         assert item["type"] == "md5"
+        listed = client.get("/api/iocs").json()["items"][0]
+        assert item["type"] == listed["type"]
+        # display comes from the lowercased canonical, re-chunked
+        assert listed["value"] == (
+            "d41d8cd9-8f00b204-e9800998-ecf8427e"
+        )
 
     def test_created_with_no_tags(self, client):
         item = post_ioc(client, "evil.com").json()

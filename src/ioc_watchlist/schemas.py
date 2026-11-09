@@ -11,9 +11,21 @@ class IOCTag(BaseModel):
     name: str
 
 
-class IOCRead(BaseModel):
+class IOCCreated(BaseModel):
+    """POST /api/iocs response: echoes the raw value as submitted."""
+
     id: int
-    value: str
+    value: str  # raw input, exactly as the user sent it
+    type: str
+    tags: list[IOCTag]
+    created_at: str
+
+
+class IOCRead(BaseModel):
+    """GET responses: `value` is re-defanged from the canonical value."""
+
+    id: int
+    value: str  # re-defanged display value
     type: str
     tags: list[IOCTag]
     created_at: str

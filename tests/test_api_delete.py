@@ -85,7 +85,7 @@ class TestDeleteCascades:
         client.delete(f"/api/iocs/{doomed['id']}")
         data = client.get("/api/iocs?tags=keep").json()
         assert data["total"] == 1
-        assert data["items"][0]["value"] == "8.8.8.8"
+        assert data["items"][0]["value"] == "8[.]8[.]8[.]8"
 
     def test_connect_helper_reads_patched_db(self, tmp_db_path, client):
         # sanity: connect() (used in other tests) reads the patched DB path,

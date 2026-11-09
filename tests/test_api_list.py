@@ -42,10 +42,10 @@ class TestListAll:
 
 class TestTypeFilter:
     @pytest.mark.parametrize(("wanted_type", "expected_value"), [
-        ("ipv4", "8.8.8.8"),
-        ("domain", "evil.com"),
-        ("md5", "d41d8cd98f00b204e9800998ecf8427e"),
-        ("url", "http://c2.example.org/a"),
+        ("ipv4", "8[.]8[.]8[.]8"),
+        ("domain", "evil[.]com"),
+        ("md5", "d41d8cd9-8f00b204-e9800998-ecf8427e"),
+        ("url", "hxxp://c2[.]example[.]org/a"),
     ])
     def test_filter_by_type(self, populated, client, wanted_type, expected_value):
         data = client.get(f"/api/iocs?type={wanted_type}").json()
@@ -78,7 +78,7 @@ class TestTagsFilter:
         post_ioc(client, "1.1.1.1", ["b"])
         data = client.get("/api/iocs?tags=a,b").json()
         assert data["total"] == 1
-        assert data["items"][0]["value"] == "8.8.8.8"
+        assert data["items"][0]["value"] == "8[.]8[.]8[.]8"
 
     def test_tag_filter_case_insensitive(self, client, populated):
         data = client.get("/api/iocs?tags=MALWARE").json()
@@ -99,7 +99,7 @@ class TestTagsFilter:
     def test_type_and_tags_combined(self, client, populated):
         data = client.get("/api/iocs?type=ipv4&tags=malware,dns").json()
         assert data["total"] == 1
-        assert data["items"][0]["value"] == "8.8.8.8"
+        assert data["items"][0]["value"] == "8[.]8[.]8[.]8"
 
     def test_type_and_tag_excluding_each_other(self, client, populated):
         data = client.get("/api/iocs?type=domain&tags=malware").json()

@@ -10,6 +10,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS iocs (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     value      TEXT NOT NULL UNIQUE,
+    raw_value  TEXT NOT NULL,
     type       TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -41,7 +42,15 @@ def init_schema(db_path: str | None = None) -> None:
     conn = sqlite3.connect(db_path or DB_PATH)
     try:
         conn.executescript(SCHEMA)
-        conn.commit()
+        # Legacy DBs (created before raw_value existed): add the column and
+        # backfill it from the canonical value so old rows keep working.
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(iocs)")}
+        if "raw_value" not in columns:
+            conn.execute("ALTER TABLE iocs ADD COLUMN raw_value TEXT")
+            conn.execute(
+                "UPDATE iocs SET raw_value = value WHERE raw_value IS NULL"
+            )
+            conn.commit()
     finally:
         conn.close()
 
